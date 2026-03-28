@@ -31,3 +31,9 @@ to generate an explanation with a recommended action.
 | `invoice_date` | string | Date invoice was submitted |
 | `anomaly_type` | string | Human-readable anomaly label *(not used in training)* |
 | `label` | int | Target variable — `0` = normal, `1` = anomaly |
+
+## Setup
+
+### FAST API
+
+1. pip install fastapi uvicorn
