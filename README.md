@@ -11,6 +11,8 @@ pinned: false
 
 This project builds an AI system that automatically detects suspicious vendor invoices in a Procure-to-Pay (P2P) process and explains why they were flagged. A machine learning model scans incoming invoices and scores them for risk. When a suspicious invoice is found, a RAG pipeline searches through procurement policy documents and vendor contracts to find relevant context, then uses an LLM to generate a plain-English explanation with a recommended action.
 
+**Live Demo:** https://carolinjames-p2p-anomaly-detection-ui.hf.space
+
 ---
 
 ## Terminology
@@ -35,7 +37,7 @@ The standard AP (Accounts Payable) control that checks three documents agree bef
 All three must match within an acceptable tolerance. A failed three-way match is one of the strongest signals of a billing anomaly.
 
 ### Deviation %
-The percentage difference between the invoice amount and the PO amount. Calculated as `((invoice_amount - po_amount) / po_amount) * 100`. AP policy in this system uses tiered thresholds: up to 5% is auto-approved, 5–15% requires manager sign-off, above 15% requires CFO escalation.
+The percentage difference between the invoice amount and the PO amount. Calculated as `((invoice_amount - po_amount) / po_amount) * 100`. AP policy in this system uses tiered thresholds: up to 5% is auto-approved, 5-15% requires manager sign-off, above 15% requires CFO escalation.
 
 ### AP (Accounts Payable)
 The team or function responsible for processing and paying vendor invoices. They are the primary users of a system like this — the anomaly flags and RAG explanations are designed to support their review and escalation decisions.
@@ -69,28 +71,59 @@ A record of a past anomalous invoice that was investigated, resolved, and docume
 
 ```
 Invoice JSON
-     │
-     ▼
-┌─────────────────────────────┐
-│  POST /invoice (FastAPI)    │
-│  ├── Field validation       │
-│  ├── 4 rule-based detectors │
-│  └── Random Forest scorer  │
-└────────────┬────────────────┘
-             │ anomaly flagged
-             ▼
-┌─────────────────────────────┐
-│  POST /explain (FastAPI)    │
-│  ├── ChromaDB retrieval     │
-│  │   ├── Past fraud cases   │
-│  │   ├── AP policy docs     │
-│  │   └── Vendor contracts   │
-│  └── GPT-4o explanation     │
-└────────────┬────────────────┘
-             │
-             ▼
+     |
+     v
++-----------------------------+
+|  POST /invoice (FastAPI)    |
+|  +-- Field validation       |
+|  +-- 4 rule-based detectors |
+|  +-- Random Forest scorer   |
++------------+----------------+
+             | anomaly flagged
+             v
++-----------------------------+
+|  POST /explain (FastAPI)    |
+|  +-- ChromaDB retrieval     |
+|  |   +-- Past fraud cases   |
+|  |   +-- AP policy docs     |
+|  |   +-- Vendor contracts   |
+|  +-- GPT-4o explanation     |
++------------+----------------+
+             |
+             v
      Streamlit Demo UI
 ```
+
+---
+
+## Model Learnings
+
+### Random Forest Classifier
+- Trained on 20,000 synthetic P2P invoices (80% normal, 5% each anomaly type)
+- 7 features: `po_amount`, `invoice_amount`, `gr_amount`, `deviation_pct`, `days_since_last_invoice`, `is_new_vendor`, `three_way_match`
+- Achieved **1.00 accuracy** and **1.0000 ROC-AUC** on test data
+- The perfect score is expected on synthetic data — real-world data would show lower scores as anomalies are more ambiguous
+- Model is trained at Docker build time on Hugging Face Spaces — no binary file stored in the repo
+
+### What the model learns
+The Random Forest picks up on feature combinations that rule-based detectors alone cannot catch:
+- An invoice from a known vendor with a small deviation but zero GR — individually minor flags, combined a strong fraud signal
+- A new vendor invoice just under the $10,000 threshold — rule-based misses it, ML scores it high based on other features
+- Repeated invoices with matching amounts but slightly different PO references — pattern recognised across feature combinations
+
+### Rule-based vs ML — why both
+| Approach | Strength | Weakness |
+|---|---|---|
+| Rule-based detectors | Explainable, auditable, domain-driven | Misses edge cases and combined signals |
+| Random Forest | Catches complex patterns, scores confidence | Black box without RAG explanation layer |
+| Combined | Flags with rules, scores with ML, explains with RAG | Requires all three layers to be maintained |
+
+### RAG Pipeline
+- **Embedding model:** `sentence-transformers/all-MiniLM-L6-v2` — lightweight, fast, good semantic similarity
+- **Vector store:** ChromaDB with two collections — one for past fraud cases, one for policy/contract documents
+- **Retrieval strategy:** Hybrid — 3 similar past cases + 2 policy/contract docs per query, using metadata filters to guarantee policy retrieval
+- **Generation:** GPT-4o with a structured prompt that enforces FINDING / EVIDENCE / RISK / ACTION format
+- **Key insight:** Separating cases and policy documents into two collections prevents policy docs from being crowded out by the larger case collection
 
 ---
 
@@ -130,38 +163,38 @@ Invoice JSON
 
 ```
 p2p-anomaly-detection/
-├── api.py                        ← FastAPI app — /invoice and /explain endpoints
-├── app.py                        ← Streamlit demo UI
-├── rag.py                        ← RAGExplainer — ChromaDB retrieval + GPT-4o
-├── train.py                      ← Random Forest training script
-├── requirements.txt
-├── data/
-│   ├── p2p_invoices.csv          ← 20,000 row synthetic dataset
-│   └── generate_p2p_data.py
-├── documents/                    ← 814 source documents for RAG
-├── models/
-│   └── random_forest.joblib
-├── interfaces/
-│   └── base_detector.py
-├── validators/
-│   └── invoice_validator.py
-├── detectors/
-│   ├── overbilling_detector.py
-│   ├── duplicate_detector.py
-│   ├── phantom_delivery_detector.py
-│   └── new_vendor_risk_detector.py
-└── orchestrator/
-    └── anomaly_orchestrator.py
++-- api.py                        <- FastAPI app -- /invoice and /explain endpoints
++-- app.py                        <- Streamlit demo UI
++-- rag.py                        <- RAGExplainer -- ChromaDB retrieval + GPT-4o
++-- train.py                      <- Random Forest training script
++-- requirements.txt              <- All dependencies
++-- Dockerfile                    <- Docker config for HF Spaces backend
++-- README.md
++-- data/
+|   +-- p2p_invoices.csv          <- 20,000 row synthetic dataset
+|   +-- generate_p2p_data.py      <- Data generation script
++-- documents/                    <- 814 source documents for RAG
++-- interfaces/
+|   +-- base_detector.py
++-- validators/
+|   +-- invoice_validator.py
++-- detectors/
+|   +-- overbilling_detector.py
+|   +-- duplicate_detector.py
+|   +-- phantom_delivery_detector.py
+|   +-- new_vendor_risk_detector.py
++-- orchestrator/
+    +-- anomaly_orchestrator.py
 ```
 
 ---
 
-## Setup
+## Local Setup
 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-username/p2p-anomaly-detection.git
+git clone https://github.com/Carolin16/p2p-anomaly-detection.git
 cd p2p-anomaly-detection
 pip install -r requirements.txt
 ```
@@ -190,6 +223,42 @@ uvicorn api:app --reload
 ```bash
 streamlit run app.py
 ```
+
+---
+
+## Deployment (Hugging Face Spaces)
+
+This project is deployed across two Hugging Face Spaces.
+
+### Backend (Docker Space)
+- Space: `carolinjames/p2p-anomaly-api`
+- SDK: Docker
+- The `Dockerfile` installs dependencies and runs `python train.py` at build time to generate the model — no binary file is stored in the repo
+- Start command: `uvicorn api:app --host 0.0.0.0 --port 7860`
+- `OPENAI_API_KEY` is stored as a Space secret
+
+To redeploy:
+```bash
+git remote add hf https://YOUR_TOKEN@huggingface.co/spaces/carolinjames/p2p-anomaly-api
+git push hf main --force
+```
+
+### Frontend (Streamlit Space)
+- Space: `carolinjames/p2p-anomaly-detection-ui`
+- SDK: Streamlit
+- `API_BASE` in `app.py` points to the backend Space URL
+- README.md must include `app_file: app.py` in the HF header
+
+To redeploy:
+```bash
+git remote add hf-ui https://YOUR_TOKEN@huggingface.co/spaces/carolinjames/p2p-anomaly-detection-ui
+git push hf-ui main --force
+```
+
+### Environment variables
+| Variable | Where | Purpose |
+|---|---|---|
+| `OPENAI_API_KEY` | Backend Space secret | GPT-4o API access |
 
 ---
 
