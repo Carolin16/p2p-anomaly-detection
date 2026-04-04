@@ -1,10 +1,5 @@
 ---
 title: P2P Anomaly Detection
-emoji: 
-colorFrom: red
-colorTo: orange
-sdk: docker
-pinned: false
 ---
 
 # P2P Anomaly Detection with RAG-based Explanation
