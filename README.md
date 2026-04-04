@@ -3,7 +3,7 @@
 
 > Combining Machine Learning and Retrieval-Augmented Generation to make invoice fraud explainable in a Procure-to-Pay cycle.
 
-This project builds an AI system that automatically detects suspicious vendor invoices in a Procure-to-Pay (P2P) process and explains why they were flagged. A machine learning model scans incoming invoices and scores them for risk. When a suspicious invoice is found, a RAG pipeline searches through procurement policy documents and vendor contracts to find relevant context, then uses an LLM to generate a plain-English explanation with a recommended action.
+This project builds an AI system that detects suspicious vendor invoices in a Procure-to-Pay (P2P) process and explains why they were flagged. A machine learning model scans incoming invoices and scores them for risk. When a suspicious invoice is found, a RAG pipeline searches through procurement policy documents and vendor contracts to find relevant context, then uses an LLM to generate an explanation with a recommended action.
 
 **Live Demo:** https://carolinjames-p2p-anomaly-detection-ui.hf.space
 
