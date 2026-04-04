@@ -3,7 +3,7 @@ import requests
 
 st.set_page_config(page_title="Invoice Fraud Detection",  layout="wide")
 
-API_BASE = "http://localhost:8000"
+API_BASE = "https://carolinjames-p2p-anomaly-api.hf.space"
 
 st.markdown("""
 <style>
