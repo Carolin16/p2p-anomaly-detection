@@ -10,8 +10,7 @@ data/p2p_invoices.csv
  
 # Models 
 models/*.pkl 
-models/*.joblib 
- 
+
 # IDE 
 .vscode/ 
 .idea/ 
