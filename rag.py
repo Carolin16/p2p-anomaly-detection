@@ -301,4 +301,3 @@ class RAGExplainer:
             metadatas=metadatas_list,
             ids = ids
         )
-        print("load_documents complete")  # ← add this
